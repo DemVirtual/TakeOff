@@ -1,0 +1,173 @@
+<!doctype html><html lang="pt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Viagens"><meta name="theme-color" content="#1f6feb">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Viagens</title>
+<style>
+:root{--b:#1f6feb;--r:#c00000;--g:#1a7f37;--bg:#f2f3f5;--c:#fff;--t:#1c1c1e;--m:#6b6b70;--l:#dcdce0}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--c:#1c1c1e;--t:#f2f2f2;--m:#9a9aa0;--l:#38383a;--r:#ff5a52;--g:#34c759}}
+*{box-sizing:border-box}
+body{margin:0;font:16px system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t);padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--c);border-bottom:1px solid var(--l);position:sticky;top:0;z-index:5}
+.bar b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pad{padding:10px 12px}
+.tabs{display:flex;overflow-x:auto;gap:6px;padding:0 12px 8px}
+.tab{flex:none;border:0;border-radius:16px;padding:7px 13px;background:var(--c);color:var(--t);font-size:15px}
+.tab.on{background:var(--b);color:#fff}
+.card{background:var(--c);border-radius:10px;padding:11px 12px;margin:8px 0;border-left:5px solid var(--l)}
+.btn{border:0;border-radius:9px;padding:10px 14px;background:var(--bg);color:var(--b);font-size:16px;text-decoration:none;display:inline-block;margin:4px 0}
+.btn.p{background:var(--b);color:#fff}
+.ic,.lk{border:0;background:none;color:var(--b);font-size:18px;padding:4px 8px}
+.lk{font-size:15px}
+.red{color:var(--r)}.grn{color:var(--g)}.mut{color:var(--m);font-size:14px}
+label{display:block;margin:9px 0 3px;font-size:14px;color:var(--m)}
+.ck{display:flex;gap:8px;align-items:center;color:var(--t);font-size:16px;margin:4px 0}
+input,select,textarea{width:100%;font:inherit;padding:9px;border:1px solid var(--l);border-radius:8px;background:var(--bg);color:var(--t)}
+.ck input{width:auto}
+dialog{width:min(560px,94vw);max-height:90vh;overflow:auto;border:0;border-radius:14px;background:var(--c);color:var(--t);padding:14px}
+dialog::backdrop{background:#0008}
+.row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.pv{max-width:100%;border-radius:8px;margin:6px 0}
+.tw{overflow-x:auto;background:var(--c);border-radius:10px;margin:8px 0}
+.tl{position:relative}
+.tl i{position:absolute;top:20px;bottom:0;border-left:1px solid var(--l)}
+.tl s{position:absolute;top:3px;font-size:10px;text-decoration:none;transform:translateX(-50%);color:var(--m)}
+.tl u{position:absolute;height:26px;line-height:26px;padding:0 5px;border-radius:5px;color:#fff;font-size:12px;overflow:hidden;white-space:nowrap;text-decoration:none}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:4px;text-align:right}td:first-child,th:first-child{text-align:left}
+</style></head><body><div id=app></div><dialog id=d></dialog>
+<script>
+const $=s=>document.querySelector(s),uid=()=>Math.random().toString(36).slice(2,10),
+esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),
+fd=d=>d.split('-').reverse().join('/'),
+money=(c,u)=>(c/100).toFixed(2).replace('.',',')+(u?' '+u:''),
+tm=s=>+s.slice(0,2)*60+ +s.slice(3),
+WD=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+PAL=['#1f77b4','#e8710a','#2e9e44','#8e44ad','#0e9aa7','#c2185b','#8d6e63','#3f51b5','#558b2f','#607d8b'],
+rng=t=>fd(t.start)+(t.end&&t.end!=t.start?' → '+fd(t.end):''),
+dl=s=>WD[new Date(s+'T12:00').getDay()]+' '+s.slice(8)+'/'+s.slice(5,7),
+days=t=>{const o=[];if(!t.start)return o;let d=new Date(t.start+'T12:00');const e=new Date((t.end||t.start)+'T12:00');while(d<=e&&o.length<366){o.push(d.toLocaleDateString('sv-SE'));d=new Date(d.getTime()+864e5)}return o},
+uniq=a=>[...new Map(a.filter(Boolean).map(x=>[x.toLowerCase(),x])).values()],
+DB=new Promise((ok,ko)=>{const q=indexedDB.open('viagens',1);q.onupgradeneeded=()=>{q.result.createObjectStore('t',{keyPath:'id'});q.result.createObjectStore('f')};q.onsuccess=()=>ok(q.result);q.onerror=ko}),
+io=async(s,m,f)=>{const d=await DB;return new Promise((ok,ko)=>{const r=f(d.transaction(s,m).objectStore(s));r.onsuccess=()=>ok(r.result);r.onerror=ko})},
+save=t=>(t.updated=new Date().toISOString(),io('t','readwrite',s=>s.put(t))),fput=(i,b)=>io('f','readwrite',s=>s.put(b,i)),fget=i=>io('f','readonly',s=>s.get(i)),fdel=i=>io('f','readwrite',s=>s.delete(i));
+let T=[],S={tab:'d',sub:'geral',cs:'f'};
+const go=()=>S.trip?tripV():homeV();
+function dlg(h,ok,extra=''){const d=$('#d');d.innerHTML=`<form>${h}<div class=row>${extra}<button type=button class=btn id=x>Cancelar</button><button class="btn p">Guardar</button></div></form>`;
+$('#x').onclick=()=>d.close();d.querySelector('form').onsubmit=async e=>{e.preventDefault();if(await ok(new FormData(e.target))!==false)d.close()};if(!d.open)d.showModal()}
+const own=(t,o)=>o=='geral'?'Geral':t.people.find(p=>p.id==o)?.name||'';
+const fl=d=>`<div class="${d.files.length?'grn':'red'}">${d.files.length?'✔ '+d.files.length+' ficheiro(s)':'⚠ Sem ficheiros'}</div>`;
+function lay(acts){const tt=acts.filter(a=>a.start&&a.end&&tm(a.end)>tm(a.start)).sort((a,b)=>tm(a.start)-tm(b.start)||tm(a.end)-tm(b.end)),ends=[],lane=new Map(),pairs=[];
+tt.forEach((a,i)=>{for(const b of tt.slice(0,i))if(tm(a.start)<tm(b.end)&&tm(b.start)<tm(a.end))pairs.push([b,a]);let l=ends.findIndex(e=>e<=tm(a.start));if(l<0)l=ends.push(0)-1;ends[l]=tm(a.end);lane.set(a,l)});return{tt,lane,pairs,n:ends.length}}
+
+function homeV(){$('#app').innerHTML=`<div class=bar><b>✈ As minhas viagens</b></div><div class=pad>${T.map(t=>`<div class=card data-a=open data-id=${t.id}><b>${esc(t.name)}</b> <span class=mut>${esc(t.destination)}</span><div class="${t.start?'mut':'red'}">${t.start?'📅 '+rng(t):'⚠ sem datas'}</div></div>`).join('')||'<p class=mut>Ainda não tens viagens.</p>'}<button class="btn p" data-a=newtrip>➕ Nova viagem</button> <button class=btn data-a=imp>📥 Importar viagem</button><input type=file id=imp hidden></div>`}
+
+function tripV(){const t=S.trip,tb=[['d','📄 Documentos'],['r','🗺 Roteiro'],['c','💰 Contas']];
+$('#app').innerHTML=`<div class=bar><button class=ic data-a=home>←</button><b>${esc(t.name)}${t.destination?' — '+esc(t.destination):''}</b><button class=ic data-a=exp>📤</button><button class=ic data-a=edtrip>✏</button></div><div class=pad><span class="${t.start?'grn':'red'}">${t.start?'📅 '+rng(t)+' ('+days(t).length+' dias)':'⚠ Datas da viagem não definidas'}</span> <button class=lk data-a=dates>${t.start?'Editar':'Definir datas'}</button></div><div class=tabs>${tb.map(([k,n])=>`<button class="tab${S.tab==k?' on':''}" data-a=tab data-k=${k}>${n}</button>`).join('')}</div><div class=pad id=body></div>`;
+({d:docsV,r:rotV,c:contasV})[S.tab]()}
+
+const chips=(l,cur,a)=>`<div class=tabs style="padding:0 0 8px">${l.map(([k,n])=>`<button class="tab${cur==k?' on':''}" data-a=${a} data-k=${k}>${esc(n)}</button>`).join('')}</div>`;
+
+function docsV(){const t=S.trip;if(S.sub!='geral'&&!t.people.some(p=>p.id==S.sub))S.sub='geral';
+$('#body').innerHTML=chips([['geral','📁 Geral'],...t.people.map(p=>[p.id,'👤 '+p.name]),['+','＋']],S.sub,'sub')+t.docs.filter(d=>d.owner==S.sub).map(d=>`<div class=card data-a=view data-id=${d.id}><b>${esc(d.title)}</b> <span class=mut>${esc(d.category)}</span>${fl(d)}</div>`).join('')+`<button class="btn p" data-a=new>➕ Novo item</button>`}
+
+function contasV(){const t=S.trip;$('#body').innerHTML=chips([['f','🧾 Faturas'],['a','📊 Acertos']],S.cs,'cs')+(S.cs=='f'?fat(t):ace(t))}
+const bad=d=>!d.amount||!d.cur||!d.paid||!d.split.length;
+const fat=t=>t.docs.filter(d=>d.owner=='contas').reverse().map(d=>`<div class=card data-a=view data-id=${d.id}><b>${esc(d.title)}</b> <span class=mut>${esc(d.category)}</span><div>${d.amount?money(d.amount,d.cur):'—'} <span class=mut>· pago por ${esc(own(t,d.paid)||'?')}</span></div>${bad(d)?'<div class=red>⚠ Fatura incompleta</div>':''}${fl(d)}</div>`).join('')+'<button class="btn p" data-a=newc>➕ Nova fatura</button>';
+
+function ace(t){const P=t.people,G={},sel=S.fsel||new Set(P.map(p=>p.id));let inc=0;
+t.docs.filter(d=>d.owner=='contas').forEach(d=>{const sp=d.split.filter(i=>P.some(p=>p.id==i));if(bad(d)||!P.some(p=>p.id==d.paid)||!sp.length){inc++;return}
+const g=G[d.cur.toLowerCase()]??={cur:d.cur,tot:0,pd:{},sh:{},ow:{}};g.tot+=d.amount;g.pd[d.paid]=(g.pd[d.paid]||0)+d.amount;
+const q=Math.floor(d.amount/sp.length),r=d.amount%sp.length;
+sp.forEach((p,i)=>{const s=q+(i<r?1:0);g.sh[p]=(g.sh[p]||0)+s;if(p!=d.paid){const k=p+'>'+d.paid;g.ow[k]=(g.ow[k]||0)+s}})});
+return `<div class=card><b>Ver as contas de:</b>${P.map(p=>`<label class=ck><input type=checkbox data-a=fil data-id=${p.id}${sel.has(p.id)?' checked':''}>${esc(p.name)}</label>`).join('')}</div>`
++(inc?`<div class=red>⚠ ${inc} fatura(s) incompleta(s) fora do cálculo (falta valor, moeda, quem pagou ou divisão).</div>`:'')
++(Object.values(G).map(g=>{const db=[];P.forEach((a,i)=>P.slice(i+1).forEach(b=>{const n=(g.ow[a.id+'>'+b.id]||0)-(g.ow[b.id+'>'+a.id]||0);if(n)db.push(n>0?[a,b,n]:[b,a,-n])}));
+const sd=db.filter(([x,y])=>sel.has(x.id)||sel.has(y.id));
+return `<div class=card><b>💱 ${esc(g.cur)} — total ${money(g.tot,g.cur)}</b><table><tr><th><th>Pagou<th>Parte<th>Saldo</tr>${P.filter(p=>sel.has(p.id)).map(p=>{const s=(g.pd[p.id]||0)-(g.sh[p.id]||0);return `<tr><td>${esc(p.name)}<td>${money(g.pd[p.id]||0)}<td>${money(g.sh[p.id]||0)}<td class="${s>0?'grn':s<0?'red':''}">${(s>0?'+':'')+money(s)}</tr>`}).join('')}</table>${sd.map(([x,y,n])=>`<div class=red>${esc(x.name)} deve ${money(n,g.cur)} a ${esc(y.name)}</div>`).join('')||'<div class=grn>✔ Sem dívidas</div>'}</div>`}).join('')||'<p class=mut>Ainda não há faturas completas.</p>')}
+
+function rotV(){const t=S.trip,b=$('#body'),ds=days(t),orph=t.rot.filter(a=>!ds.includes(a.day));
+if(!ds.length&&!orph.length){b.innerHTML='<div class=red>⚠ Define as datas da viagem para criar os dias do roteiro.</div>';return}
+if(S.day!='x'&&!ds.includes(S.day))S.day=ds[0]||'x';
+const acts=S.day=='x'?orph:t.rot.filter(a=>a.day==S.day),L=lay(acts),W=Math.max(760,0);
+const cl=[...ds.map(d=>[d,(lay(t.rot.filter(a=>a.day==d)).pairs.length?'⚠ ':'')+dl(d)]),...(orph.length?[['x','⚠ Fora das datas']]:[])];
+b.innerHTML=chips(cl,S.day,'day')+(S.day=='x'?'<div class=red>Atividades fora das datas atuais — edita-as para as mudares de dia.</div>':`<b>Dia ${ds.indexOf(S.day)+1} — ${fd(S.day)}</b><div class=tw><div class=tl style="width:${W}px;height:${30+L.n*30}px">${[...Array(25).keys()].map(h=>`<i style="left:${h/24*100}%"></i><s style="left:${h/24*100}%">${h%2?'':String(h).padStart(2,'0')}</s>`).join('')}${L.tt.map(a=>`<u data-a=eact data-id=${a.id} style="left:${tm(a.start)/14.4}%;width:${(tm(a.end)-tm(a.start))/14.4}%;top:${24+L.lane.get(a)*30}px;background:${a.color};${L.pairs.some(p=>p.includes(a))?'outline:3px solid var(--r)':''}">${esc(a.title)}</u>`).join('')}</div></div>`)
++(L.pairs.length?`<div class=red><b>⚠ Horas coincidentes:</b><br>${L.pairs.map(([x,y])=>`${esc(x.title)} (${x.start}–${x.end}) × ${esc(y.title)} (${y.start}–${y.end})`).join('<br>')}</div>`:'')
++[...acts].sort((a,b)=>(a.start||'99').localeCompare(b.start||'99')).map(a=>`<div class=card data-a=eact data-id=${a.id} style="border-color:${a.color}"><b>${a.start&&a.end?a.start+'–'+a.end+' ':''}${esc(a.title)}</b>${a.docs.length?`<div class=mut>📎 ${a.docs.map(i=>esc(t.docs.find(d=>d.id==i)?.title||'')).join(', ')}</div>`:''}${a.notes?`<div class=mut>${esc(a.notes)}</div>`:''}${a.start&&a.end?'':'<div class=mut>Sem horário completo — não aparece na linha do tempo</div>'}</div>`).join('')
++(S.day=='x'?'':'<button class="btn p" data-a=nact>➕ Atividade</button>')}
+
+function actForm(a,day){const t=S.trip,ds=days(t),docs=t.docs.filter(x=>x.owner!='contas');
+dlg(`<label>Título</label><input name=ti required value="${esc(a?.title)}"><label>Dia</label><select name=dy>${a&&!ds.includes(a.day)?`<option value=${a.day} selected>⚠ ${fd(a.day)}`:''}${ds.map(x=>`<option value=${x}${x==(a?.day||day)?' selected':''}>${dl(x)}`).join('')}</select><label>Início</label><input type=time name=s value="${a?.start||''}"><label>Fim</label><input type=time name=e value="${a?.end||''}"><label>Notas</label><textarea name=no rows=2>${esc(a?.notes)}</textarea><label>Documentos associados</label>${docs.map(x=>`<label class=ck><input type=checkbox name=dc value=${x.id}${a?.docs.includes(x.id)?' checked':''}>${esc(x.title)} <span class=mut>· ${esc(own(t,x.owner))}</span></label>`).join('')||'<span class=mut>Sem documentos.</span>'}`,
+f=>{const s=f.get('s'),e=f.get('e');if(!s!=!e||(s&&tm(e)<=tm(s))){alert('Preenche o início e o fim (fim depois do início) ou deixa os dois vazios.');return false}
+const o=a||{id:uid()};if(!a)t.rot.push(o);Object.assign(o,{title:f.get('ti').trim(),day:f.get('dy'),start:s,end:e,notes:f.get('no').trim(),docs:f.getAll('dc')});
+const used=c=>t.rot.some(x=>x!=o&&x.day==o.day&&x.color==c);if(!o.color||used(o.color))o.color=PAL.find(c=>!used(c))||PAL[t.rot.length%PAL.length];
+S.day=o.day;save(t);go()},a?'<button type=button class=btn id=rm>🗑</button>':'');
+if(a)$('#rm').onclick=()=>{if(confirm('Remover esta atividade?')){t.rot=t.rot.filter(x=>x!=a);save(t);$('#d').close();go()}}}
+
+function docForm(d,conta){const t=S.trip,P=t.people,cats=uniq(t.docs.map(x=>x.category)),curs=uniq(t.docs.filter(x=>x.owner=='contas').map(x=>x.cur));
+dlg(`<label>Título</label><input name=ti required value="${esc(d?.title)}"><label>Categoria</label><input name=ca list=cl value="${esc(d?.category)}"><datalist id=cl>${cats.map(c=>`<option>${esc(c)}`).join('')}</datalist>`
++(conta?`<label>Valor</label><input name=am inputmode=decimal value="${d?.amount?(d.amount/100).toFixed(2).replace('.',','):''}"><label>Moeda</label><input name=cu list=cu value="${esc(d?.cur)}"><datalist id=cu>${curs.map(c=>`<option>${esc(c)}`).join('')}</datalist><label>Pago por</label><select name=pa><option value="">—${P.map(p=>`<option value=${p.id}${d?.paid==p.id?' selected':''}>${esc(p.name)}`).join('')}</select><label>Dividido por</label>${P.map(p=>`<label class=ck><input type=checkbox name=sp value=${p.id}${(d?d.split:P.map(x=>x.id)).includes(p.id)?' checked':''}>${esc(p.name)}</label>`).join('')}`:'')
++`<label>Notas</label><textarea name=no rows=3>${esc(d?.notes)}</textarea>`+(d?.files.length?`<label>Ficheiros (desmarca para remover)</label>${d.files.map(f=>`<label class=ck><input type=checkbox name=kp value=${f.id} checked>${esc(f.name)}</label>`).join('')}`:'')+`<label>Adicionar ficheiros (imagens ou PDF)</label><input type=file name=fl multiple accept="image/*,application/pdf">`,
+async f=>{const o=d||{id:uid(),owner:conta?'contas':S.sub,created:new Date().toISOString(),files:[]};
+o.title=f.get('ti').trim();o.category=f.get('ca').trim();o.notes=f.get('no').trim();
+if(conta){const s=f.get('am').replace(/\s/g,''),a=parseFloat(s.includes(',')?s.replace(/\./g,'').replace(',','.'):s);if(s&&!(a>0)){alert('Valor inválido. Escreve só o número, por exemplo 45,90.');return false}o.amount=s?Math.round(a*100):0;o.cur=f.get('cu').trim();o.paid=f.get('pa');o.split=f.getAll('sp')}
+if(d){const kp=f.getAll('kp');for(const x of o.files.filter(x=>!kp.includes(x.id)))await fdel(x.id);o.files=o.files.filter(x=>kp.includes(x.id))}
+for(const b of f.getAll('fl'))if(b.size){const i=uid();await fput(i,b);o.files.push({id:i,name:b.name,type:b.type||'application/octet-stream'})}
+if(!d)t.docs.push(o);await save(t);go()})}
+
+async function view(id){const t=S.trip,d=t.docs.find(x=>x.id==id),c=d.owner=='contas',N=n=>own(t,n)||'—';let h='';
+for(const f of d.files){const b=await fget(f.id);h+=!b?`<div class=red>⚠ ${esc(f.name)} em falta</div>`:f.type.startsWith('image/')?`<img class=pv src="${URL.createObjectURL(b)}">`:`<a class=btn href="${URL.createObjectURL(b)}" target=_blank>📄 ${esc(f.name)}</a>`}
+const ro=(k,v)=>`<label>${k}</label><div>${esc(v)||'—'}</div>`,e=$('#d');
+e.innerHTML=`<b>${esc(d.title)}</b>${ro('Categoria',d.category)}${c?ro('Valor',d.amount?money(d.amount,d.cur):'')+ro('Pago por',N(d.paid))+ro('Dividido por',d.split.map(N).join(', ')):''}${ro('Registado em',d.created?new Date(d.created).toLocaleString('pt-PT'):'')}${ro('Notas',d.notes)}${t.rot.some(a=>a.docs.includes(id))?ro('Roteiro',t.rot.filter(a=>a.docs.includes(id)).map(a=>a.title).join('; ')):''}<br>${fl(d)}${h}<div class=row><button class=btn data-a=close>Fechar</button><button class=btn data-a=del data-id=${id}>🗑</button><button class="btn p" data-a=ed data-id=${id}>✏ Editar</button></div>`;if(!e.open)e.showModal()}
+
+
+const crcT=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})(),
+crc=u=>{let c=-1;for(let i=0;i<u.length;i++)c=crcT[(c^u[i])&255]^(c>>>8);return(~c)>>>0};
+function zip(ents){const enc=new TextEncoder(),parts=[],cd=[];let off=0;
+for(const[n,u]of ents){const nm=enc.encode(n),c=crc(u),h=new DataView(new ArrayBuffer(30)),e=new DataView(new ArrayBuffer(46));
+h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x800,true);h.setUint16(12,0x21,true);h.setUint32(14,c,true);h.setUint32(18,u.length,true);h.setUint32(22,u.length,true);h.setUint16(26,nm.length,true);
+e.setUint32(0,0x02014b50,true);e.setUint16(4,20,true);e.setUint16(6,20,true);e.setUint16(8,0x800,true);e.setUint16(14,0x21,true);e.setUint32(16,c,true);e.setUint32(20,u.length,true);e.setUint32(24,u.length,true);e.setUint16(28,nm.length,true);e.setUint32(42,off,true);
+parts.push(h.buffer,nm,u);cd.push(e.buffer,nm);off+=30+nm.length+u.length}
+const end=new DataView(new ArrayBuffer(22));end.setUint32(0,0x06054b50,true);end.setUint16(8,ents.length,true);end.setUint16(10,ents.length,true);end.setUint32(12,cd.reduce((s,x)=>s+x.byteLength,0),true);end.setUint32(16,off,true);
+return new Blob([...parts,...cd,end.buffer],{type:'application/zip'})}
+async function unzip(buf){const u=new Uint8Array(buf),v=new DataView(buf),dec=new TextDecoder(),out={};let e=u.length-22;while(e>=0&&v.getUint32(e,true)!=0x06054b50)e--;if(e<0)throw Error('zip');
+const n=v.getUint16(e+10,true);let p=v.getUint32(e+16,true);
+for(let i=0;i<n;i++){const m=v.getUint16(p+10,true),cs=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),xl=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true),name=dec.decode(u.subarray(p+46,p+46+nl)),ls=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true);let d=u.subarray(ls,ls+cs);
+if(m==8)d=new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());else if(m)throw Error('zip');
+out[name]=d;p+=46+nl+xl+cl}return out}
+async function expo(){const t=S.trip,ents=[['trip.json',new TextEncoder().encode(JSON.stringify({format:'viagens',version:1,trip:t}))]];
+for(const d of t.docs)for(const f of d.files){const b=await fget(f.id);if(b)ents.push(['files/'+f.id,new Uint8Array(await b.arrayBuffer())])}
+const blob=zip(ents),name=t.name.replace(/[\\/:*?"<>|]/g,'_')+'.viagem',file=new File([blob],name,{type:'application/zip'}),e=$('#d');
+e.innerHTML=`<b>📤 ${esc(name)}</b><p class=mut>${(blob.size/1048576).toFixed(1)} MB · ${ents.length-1} ficheiro(s)<br>Envia para o PC (e-mail, AirDrop, WhatsApp…) e usa Importar viagem na app do PC.</p><div class=row><button class=btn data-a=close>Fechar</button><a class=btn href="${URL.createObjectURL(blob)}" download="${esc(name)}">⬇ Guardar</a><button class="btn p" id=sh>Partilhar…</button></div>`;
+$('#sh').onclick=()=>navigator.share({files:[file],title:t.name}).catch(()=>{});if(!navigator.canShare?.({files:[file]}))$('#sh').hidden=true;if(!e.open)e.showModal()}
+async function impo(file){try{const z=await unzip(await file.arrayBuffer()),c=JSON.parse(new TextDecoder().decode(z['trip.json']));
+if(c.format!='viagens'||!c.trip||c.version>1)throw Error('Ficheiro inválido ou de uma versão mais recente da app.');
+const t=c.trip,old=T.find(x=>x.id==t.id),fm=s=>s?new Date(s).toLocaleString('pt-PT'):'—';let copy=false;
+if(old&&!confirm(`A viagem "${old.name}" já existe neste telemóvel.\n\nAqui: ${fm(old.updated)}\nFicheiro: ${fm(t.updated)}${(old.updated||'')>(t.updated||'')?'\n\n⚠ Os dados daqui são mais recentes do que o ficheiro.':''}\n\nOK = substituir pela versão do ficheiro.`)){if(!confirm('Importar como cópia nova?'))return;copy=true}
+t.people??=[];t.docs??=[];t.rot??=[];t.destination??='';t.start??='';t.end??='';
+t.docs.forEach(d=>{d.files??=[];d.split??=[];d.category??='';d.notes??='';d.paid??='';d.cur??='';d.amount??=0;d.created??=''});t.rot.forEach(a=>{a.docs??=[];a.title??='';a.start??='';a.end??='';a.notes??=''});
+if(copy){t.id=uid();t.name+=' (cópia)'}else if(old)for(const d of old.docs)for(const f of d.files)await fdel(f.id);
+for(const d of t.docs)for(const f of d.files){const u=z['files/'+f.id],i=copy?uid():f.id;if(u)await fput(i,new Blob([u],{type:f.type}));f.id=i}
+await io('t','readwrite',s=>s.put(t));T=T.filter(x=>x.id!=t.id);T.push(t);S.trip=t;S.tab='d';S.sub='geral';S.fsel=null;go();alert('Viagem importada: '+t.name)}
+catch(e){alert('Não foi possível importar: '+(e.message||'ficheiro inválido'))}}
+document.addEventListener('change',e=>{if(e.target.id=='imp'&&e.target.files[0])impo(e.target.files[0]).finally(()=>e.target.value='')});
+const A={exp:()=>expo(),imp:()=>$('#imp').click(),
+open:({id})=>{S.trip=T.find(t=>t.id==id);S.tab='d';S.sub='geral';S.fsel=null;go()},
+home:()=>{S.trip=null;go()},
+tab:({k})=>{S.tab=k;go()},
+sub:({k})=>{if(k=='+'){const n=(prompt('Nome da pessoa')||'').trim();if(n){S.trip.people.push({id:uid(),name:n});S.fsel=null;save(S.trip)}}else S.sub=k;go()},
+cs:({k})=>{S.cs=k;go()},day:({k})=>{S.day=k;go()},
+fil:({id})=>{const s=S.fsel||new Set(S.trip.people.map(p=>p.id));s.has(id)?s.delete(id):s.add(id);S.fsel=s;go()},
+new:()=>docForm(null,false),newc:()=>docForm(null,true),
+view:({id})=>view(id),close:()=>$('#d').close(),
+ed:({id})=>{const d=S.trip.docs.find(x=>x.id==id);docForm(d,d.owner=='contas')},
+del:async({id})=>{const t=S.trip,d=t.docs.find(x=>x.id==id);if(!confirm('Remover "'+d.title+'" e os seus ficheiros?'))return;for(const f of d.files)await fdel(f.id);t.docs=t.docs.filter(x=>x!=d);t.rot.forEach(a=>{a.docs=a.docs.filter(i=>i!=id);if(a.contas)a.contas=a.contas.filter(i=>i!=id)});await save(t);$('#d').close();go()},
+nact:()=>actForm(null,S.day),eact:({id})=>actForm(S.trip.rot.find(x=>x.id==id)),
+newtrip:()=>dlg(`<label>Nome</label><input name=n required><label>Destino</label><input name=d><label>Partida (opcional)</label><input type=date name=s><label>Regresso</label><input type=date name=e><label>Pessoas (uma por linha)</label><textarea name=p rows=3></textarea>`,async f=>{const P=f.get('p').split('\n').map(x=>x.trim()).filter(Boolean),s=f.get('s'),t={id:uid(),name:f.get('n').trim(),destination:f.get('d').trim(),start:s,end:s?(f.get('e')<s?s:f.get('e')||s):'',people:(P.length?P:['Eu']).map(name=>({id:uid(),name})),docs:[],rot:[]};T.push(t);await save(t);A.open({id:t.id})}),
+edtrip:()=>{const t=S.trip;dlg(`<label>Nome</label><input name=n required value="${esc(t.name)}"><label>Destino</label><input name=d value="${esc(t.destination)}">`,async f=>{t.name=f.get('n').trim();t.destination=f.get('d').trim();await save(t);go()},'<button type=button class=btn id=dt>🗑 Apagar viagem</button>');
+$('#dt').onclick=async()=>{if(!confirm('Apagar esta viagem e todos os seus ficheiros?'))return;for(const d of t.docs)for(const f of d.files)await fdel(f.id);await io('t','readwrite',s=>s.delete(t.id));T=T.filter(x=>x!=t);S.trip=null;$('#d').close();go()}},
+dates:()=>{const t=S.trip;dlg(`<label>Partida</label><input type=date name=s value="${t.start||''}"><label>Regresso</label><input type=date name=e value="${t.end||''}">`,async f=>{t.start=f.get('s');t.end=t.start?(f.get('e')<t.start?t.start:f.get('e')||t.start):'';await save(t);go()},t.start?'<button type=button class=btn id=rd>Remover datas</button>':'');
+if(t.start)$('#rd').onclick=async()=>{t.start=t.end='';await save(t);$('#d').close();go()}}};
+document.addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(a&&A[a.dataset.a])A[a.dataset.a](a.dataset)});
+(async()=>{T=await io('t','readonly',s=>s.getAll());go();navigator.storage?.persist?.();if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')})();
+</script></body></html>
