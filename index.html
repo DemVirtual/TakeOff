@@ -91,9 +91,9 @@ if(!ds.length&&!orph.length){b.innerHTML='<div class=red>⚠ Define as datas da 
 if(S.day!='x'&&!ds.includes(S.day))S.day=ds[0]||'x';
 const acts=S.day=='x'?orph:t.rot.filter(a=>a.day==S.day),L=lay(acts),W=Math.max(760,0);
 const cl=[...ds.map(d=>[d,(lay(t.rot.filter(a=>a.day==d)).pairs.length?'⚠ ':'')+dl(d)]),...(orph.length?[['x','⚠ Fora das datas']]:[])];
-b.innerHTML=chips(cl,S.day,'day')+(S.day=='x'?'<div class=red>Atividades fora das datas atuais — edita-as para as mudares de dia.</div>':`<b>Dia ${ds.indexOf(S.day)+1} — ${fd(S.day)}</b><div class=tw><div class=tl style="width:${W}px;height:${30+L.n*30}px">${[...Array(25).keys()].map(h=>`<i style="left:${h/24*100}%"></i><s style="left:${h/24*100}%">${h%2?'':String(h).padStart(2,'0')}</s>`).join('')}${L.tt.map(a=>`<u data-a=eact data-id=${a.id} style="left:${tm(a.start)/14.4}%;width:${(tm(a.end)-tm(a.start))/14.4}%;top:${24+L.lane.get(a)*30}px;background:${a.color};${L.pairs.some(p=>p.includes(a))?'outline:3px solid var(--r)':''}">${esc(a.title)}</u>`).join('')}</div></div>`)
+b.innerHTML=chips(cl,S.day,'day')+(S.day=='x'?'<div class=red>Atividades fora das datas atuais — edita-as para as mudares de dia.</div>':`<b>Dia ${ds.indexOf(S.day)+1} — ${fd(S.day)}</b><div class=tw><div class=tl style="width:${W}px;height:${30+L.n*30}px">${[...Array(25).keys()].map(h=>`<i style="left:${h/24*100}%"></i><s style="left:${h/24*100}%">${h%2?'':String(h).padStart(2,'0')}</s>`).join('')}${L.tt.map(a=>`<u data-a=vact data-id=${a.id} style="left:${tm(a.start)/14.4}%;width:${(tm(a.end)-tm(a.start))/14.4}%;top:${24+L.lane.get(a)*30}px;background:${a.color};${L.pairs.some(p=>p.includes(a))?'outline:3px solid var(--r)':''}">${esc(a.title)}</u>`).join('')}</div></div>`)
 +(L.pairs.length?`<div class=red><b>⚠ Horas coincidentes:</b><br>${L.pairs.map(([x,y])=>`${esc(x.title)} (${x.start}–${x.end}) × ${esc(y.title)} (${y.start}–${y.end})`).join('<br>')}</div>`:'')
-+[...acts].sort((a,b)=>(a.start||'99').localeCompare(b.start||'99')).map(a=>`<div class=card data-a=eact data-id=${a.id} style="border-color:${a.color}"><b>${a.start&&a.end?a.start+'–'+a.end+' ':''}${esc(a.title)}</b>${a.docs.length?`<div class=mut>📎 ${a.docs.map(i=>esc(t.docs.find(d=>d.id==i)?.title||'')).join(', ')}</div>`:''}${a.notes?`<div class=mut>${esc(a.notes)}</div>`:''}${a.start&&a.end?'':'<div class=mut>Sem horário completo — não aparece na linha do tempo</div>'}</div>`).join('')
++[...acts].sort((a,b)=>(a.start||'99').localeCompare(b.start||'99')).map(a=>`<div class=card data-a=vact data-id=${a.id} style="border-color:${a.color}"><b>${a.start&&a.end?a.start+'–'+a.end+' ':''}${esc(a.title)}</b>${a.docs.length?`<div class=mut>📎 ${a.docs.map(i=>esc(t.docs.find(d=>d.id==i)?.title||'')).join(', ')}</div>`:''}${a.notes?`<div class=mut>${esc(a.notes)}</div>`:''}${a.start&&a.end?'':'<div class=mut>Sem horário completo — não aparece na linha do tempo</div>'}</div>`).join('')
 +(S.day=='x'?'':'<button class="btn p" data-a=nact>➕ Atividade</button>')}
 
 function actForm(a,day){const t=S.trip,ds=days(t),docs=t.docs.filter(x=>x.owner!='contas');
@@ -151,7 +151,11 @@ for(const d of t.docs)for(const f of d.files){const u=z['files/'+f.id],i=copy?ui
 await io('t','readwrite',s=>s.put(t));T=T.filter(x=>x.id!=t.id);T.push(t);S.trip=t;S.tab='d';S.sub='geral';S.fsel=null;go();alert('Viagem importada: '+t.name)}
 catch(e){alert('Não foi possível importar: '+(e.message||'ficheiro inválido'))}}
 document.addEventListener('change',e=>{if(e.target.id=='imp'&&e.target.files[0])impo(e.target.files[0]).finally(()=>e.target.value='')});
-const A={exp:()=>expo(),imp:()=>$('#imp').click(),
+async function vact(id){const t=S.trip,a=t.rot.find(x=>x.id==id),e=$('#d');let h='';
+for(const i of [...a.docs,...(a.contas||[])]){const d=t.docs.find(x=>x.id==i);if(!d)continue;h+=`<div class=card><b>${esc(d.title)}</b> <span class=mut>${esc(own(t,d.owner))}${d.owner=='contas'&&d.amount?' · '+money(d.amount,d.cur):''}</span>${fl(d)}`;
+for(const f of d.files){const b=await fget(f.id);h+=!b?`<div class=red>⚠ ${esc(f.name)} em falta</div>`:f.type.startsWith('image/')?`<img class=pv src="${URL.createObjectURL(b)}">`:`<a class=btn href="${URL.createObjectURL(b)}" target=_blank>📄 ${esc(f.name)}</a>`}h+='</div>'}
+e.innerHTML=`<b>${esc(a.title)}</b><div class=mut>${dl(a.day)}${a.start&&a.end?' · '+a.start+'–'+a.end:''}</div>${a.notes?`<p>${esc(a.notes)}</p>`:''}${h||'<p class=mut>Sem documentos associados.</p>'}<div class=row><button class=btn data-a=close>Fechar</button><button class="btn p" data-a=eact data-id=${id}>✏ Editar</button></div>`;if(!e.open)e.showModal()}
+const A={vact:({id})=>vact(id),exp:()=>expo(),imp:()=>$('#imp').click(),
 open:({id})=>{S.trip=T.find(t=>t.id==id);S.tab='d';S.sub='geral';S.fsel=null;go()},
 home:()=>{S.trip=null;go()},
 tab:({k})=>{S.tab=k;go()},
