@@ -82,10 +82,10 @@ const fl=d=>`<div class="${d.files.length?'grn':'red'}">${d.files.length?'✔ '+
 function lay(acts){const tt=acts.filter(a=>a.start&&a.end&&tm(a.end)>tm(a.start)).sort((a,b)=>tm(a.start)-tm(b.start)||tm(a.end)-tm(b.end)),ends=[],lane=new Map(),pairs=[];
 tt.forEach((a,i)=>{for(const b of tt.slice(0,i))if(tm(a.start)<tm(b.end)&&tm(b.start)<tm(a.end))pairs.push([b,a]);let l=ends.findIndex(e=>e<=tm(a.start));if(l<0)l=ends.push(0)-1;ends[l]=tm(a.end);lane.set(a,l)});return{tt,lane,pairs,n:ends.length}}
 
-function homeV(){$('#app').innerHTML=`<div class=hero><small>✈ TakeOFF</small><h1>As minhas viagens</h1></div><div class=pad>${T.map(t=>`<div class=card data-a=open data-id=${t.id}><b>${esc(t.name)}</b> <span class=mut>${esc(t.destination)}</span><div class="${t.start?'mut':'red'}">${t.start?'📅 '+rng(t):'⚠ sem datas'}</div></div>`).join('')||'<p class=mut>Ainda não tens viagens.</p>'}<button class="btn p" data-a=newtrip>➕ Nova viagem</button> <button class=btn data-a=imp>📥 Importar viagem</button><input type=file id=imp hidden></div>`}
+function homeV(){$('#app').innerHTML=`<div class=hero><small>✈ TakeOFF</small><h1>As minhas viagens</h1></div><div class=pad>${T.map(t=>`<div class=card data-a=open data-id=${t.id}><b>${esc(t.name)}</b> <span class=mut>${esc(t.destination)}</span><div class="${t.start?'mut':'red'}">${t.start?'📅 '+rng(t):'⚠ sem datas'}</div></div>`).join('')||'<p class=mut>Ainda não tens viagens.</p>'}<button class="btn p" data-a=newtrip>➕ Nova viagem</button> <button class=btn data-a=imp>📥 Importar viagem</button><input type=file id=imp hidden> <button class=btn data-a=acc>☁ ${U?esc(U.user.email):'Entrar'}</button> <button class=btn data-a=joinv>🔗 Convite</button></div>`}
 
 function tripV(){const t=S.trip,tb=[['d','📄','Documentos'],['r','🗺','Roteiro'],['c','💰','Contas']];
-$('#app').innerHTML=`<div class=bar><button class=ic data-a=home>←</button><b>${esc(t.name)}${t.destination?' — '+esc(t.destination):''}</b><button class=ic data-a=exp>📤</button><button class=ic data-a=edtrip>✏</button></div><div class=pad><span class="${t.start?'grn':'red'}">${t.start?'📅 '+rng(t)+' ('+days(t).length+' dias)':'⚠ Datas da viagem não definidas'}</span> <button class=lk data-a=dates>${t.start?'Editar':'Definir datas'}</button></div><div class=pad id=body></div><div class=nav>${tb.map(([k,i,n])=>`<button class="ni${S.tab==k?' on':''}" data-a=tab data-k=${k}><span>${i}</span>${n}</button>`).join('')}</div>`;
+$('#app').innerHTML=`<div class=bar><button class=ic data-a=home>←</button><b>${esc(t.name)}${t.destination?' — '+esc(t.destination):''}</b><button class=ic data-a=exp>📤</button><button class=ic data-a=edtrip>✏</button></div><div class=pad><span class="${t.start?'grn':'red'}">${t.start?'📅 '+rng(t)+' ('+days(t).length+' dias)':'⚠ Datas da viagem não definidas'}</span> <button class=lk data-a=dates>${t.start?'Editar':'Definir datas'}</button><div>${t.cloud?`☁ <b>Convite: ${t.cloud.code}</b> <button class=lk data-a=cp>Copiar</button>`:'<button class=lk data-a=up>☁ Enviar para a nuvem</button>'}</div></div><div class=pad id=body></div><div class=nav>${tb.map(([k,i,n])=>`<button class="ni${S.tab==k?' on':''}" data-a=tab data-k=${k}><span>${i}</span>${n}</button>`).join('')}</div>`;
 ({d:docsV,r:rotV,c:contasV})[S.tab]()}
 
 const chips=(l,cur,a)=>`<div class=tabs style="padding:0 0 8px">${l.map(([k,n])=>`<button class="tab${cur==k?' on':''}" data-a=${a} data-k=${k}>${esc(n)}</button>`).join('')}</div>`;
@@ -177,7 +177,64 @@ async function vact(id){const t=S.trip,a=t.rot.find(x=>x.id==id),e=$('#d');let h
 for(const i of [...a.docs,...(a.contas||[])]){const d=t.docs.find(x=>x.id==i);if(!d)continue;h+=`<div class=card><b>${esc(d.title)}</b> <span class=mut>${esc(own(t,d.owner))}${d.owner=='contas'&&d.amount?' · '+money(d.amount,d.cur):''}</span>${fl(d)}`;
 for(const f of d.files){const b=await fget(f.id);h+=!b?`<div class=red>⚠ ${esc(f.name)} em falta</div>`:f.type.startsWith('image/')?`<img class=pv src="${URL.createObjectURL(b)}">`:`<a class=btn href="${URL.createObjectURL(b)}" target=_blank>📄 ${esc(f.name)}</a>`}h+='</div>'}
 e.innerHTML=`<b>${esc(a.title)}</b><div class=mut>${dl(a.day)}${a.start&&a.end?' · '+a.start+'–'+a.end:''}</div>${a.notes?`<p>${esc(a.notes)}</p>`:''}${h||'<p class=mut>Sem documentos associados.</p>'}<div class=row><button class=btn data-a=close>Fechar</button><button class="btn p" data-a=eact data-id=${id}>✏ Editar</button></div>`;if(!e.open)e.showModal()}
-const A={vact:({id})=>vact(id),exp:()=>expo(),imp:()=>$('#imp').click(),
+const SU='https://dfxppnurdvfmmmzhxirk.supabase.co',SK='sb_publishable_8ZF43EIm1jo90rVVGgLZWA_Nu9xIPw_',uu=()=>crypto.randomUUID();
+let U=JSON.parse(localStorage.sbs||'null');
+const setU=u=>{U=u;u?localStorage.sbs=JSON.stringify(u):localStorage.removeItem('sbs')},
+sess=d=>setU({access_token:d.access_token,refresh_token:d.refresh_token,exp:Math.floor(Date.now()/1e3)+d.expires_in,user:d.user});
+async function refresh(){const d=await(await fetch(SU+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:SK,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:U.refresh_token})})).json();if(d.access_token)sess(d);else{setU(null);throw Error('Sessão expirada. Entra outra vez.')}}
+async function sb(p,o={},retry=1){
+if(U&&U.exp<Date.now()/1e3+60)await refresh();
+const r=await fetch(SU+p,{method:o.m||'GET',headers:{apikey:SK,...(U?{Authorization:'Bearer '+U.access_token}:{}),...(o.json?{'Content-Type':'application/json'}:{}),...o.h},body:o.json?JSON.stringify(o.json):o.body});
+if(r.status==401&&retry&&U){await refresh();return sb(p,o,0)}
+if(!r.ok){let m;try{const j=await r.json();m=j.message||j.msg||j.error_description||j.error||JSON.stringify(j)}catch{m=r.statusText}throw Error(m)}
+return o.blob?r.blob():r.status==204?null:r.json().catch(()=>null)}
+const ins=(tb,a)=>a.length?sb('/rest/v1/'+tb,{m:'POST',json:a,h:{Prefer:'return=representation'}}):[];
+function login(next){dlg(`<b>Entrar</b><label>E-mail</label><input type=email name=e required autocomplete=email>`,async f=>{const e=f.get('e').trim();
+try{await sb('/auth/v1/otp',{m:'POST',json:{email:e,create_user:true}})}catch(x){alert(x.message);return false}
+dlg(`<b>Código</b><p class=mut>Enviámos um código para ${esc(e)}.</p><label>Código</label><input name=c required inputmode=numeric autocomplete=one-time-code>`,async g=>{
+try{sess(await sb('/auth/v1/verify',{m:'POST',json:{type:'email',email:e,token:g.get('c').trim()}}))}catch(x){alert('Código inválido ou expirado.');return false}
+go();if(next)setTimeout(next,60)});return false})}
+async function upload(t,me){
+const tr=(await ins('trips',[{name:t.name,destination:t.destination||'',start_date:t.start||null,end_date:t.end||null}]))[0];
+try{const pr=await ins('people',t.people.map(p=>({trip_id:tr.id,name:p.name}))),pm=new Map(t.people.map((p,i)=>[p.id,pr[i].id])),mp=x=>pm.get(x)||null;
+await sb('/rest/v1/rpc/claim_person',{m:'POST',json:{p_code:tr.invite_code,p_person:pr[+me].id}});
+const dm=new Map(t.docs.map(d=>[d.id,uu()])),fm=new Map(),own=o=>o=='geral'||o=='contas'?o:(pm.get(o)||'geral');
+await ins('docs',t.docs.map(d=>({id:dm.get(d.id),trip_id:tr.id,owner:own(d.owner),title:d.title,category:d.category||'',notes:d.notes||'',amount:d.owner=='contas'?d.amount||0:null,cur:d.cur||'',paid:mp(d.paid),split:(d.split||[]).map(mp).filter(Boolean),created_at:d.created||new Date().toISOString()})));
+const fr=[];for(const d of t.docs)for(const f of d.files){const b=await fget(f.id);if(!b)continue;const id=uu();
+await sb(`/storage/v1/object/ficheiros/${tr.id}/${id}`,{m:'POST',body:b,h:{'Content-Type':b.type||'application/octet-stream'}});fm.set(f.id,id);fr.push({id,trip_id:tr.id,doc_id:dm.get(d.id),name:f.name,mime:f.type||'application/octet-stream',size:b.size})}
+await ins('files',fr);
+const am=new Map(t.rot.map(a=>[a.id,uu()]));
+await ins('rot',t.rot.map(a=>({id:am.get(a.id),trip_id:tr.id,day:a.day,title:a.title,start_time:a.start||null,end_time:a.end||null,notes:a.notes||'',color:a.color||''})));
+await ins('act_links',t.rot.flatMap(a=>[...new Set([...(a.docs||[]),...(a.contas||[])])].filter(i=>dm.has(i)).map(i=>({act_id:am.get(a.id),doc_id:dm.get(i),trip_id:tr.id}))));
+const n={...t,id:tr.id,people:t.people.map(p=>({id:pm.get(p.id),name:p.name})),
+docs:t.docs.map(d=>({...d,id:dm.get(d.id),owner:own(d.owner),paid:mp(d.paid)||'',split:(d.split||[]).map(mp).filter(Boolean),files:d.files.filter(f=>fm.has(f.id)).map(f=>({...f,id:fm.get(f.id)}))})),
+rot:t.rot.map(a=>({...a,id:am.get(a.id),docs:(a.docs||[]).filter(i=>dm.has(i)).map(i=>dm.get(i)),contas:[]})),cloud:{code:tr.invite_code,me:pr[+me].id}};
+for(const[o,nid]of fm){const b=await fget(o);if(b)await fput(nid,b);await fdel(o)}
+await io('t','readwrite',s=>s.delete(t.id));await save(n);T=T.filter(x=>x.id!=t.id);T.push(n);return n}
+catch(x){await sb('/rest/v1/trips?id=eq.'+tr.id,{m:'DELETE'}).catch(()=>0);throw x}}
+async function pull(id,code,me){const g=(tb,q='')=>sb(`/rest/v1/${tb}?trip_id=eq.${id}${q}`),
+[[tr],pe,dc,fl,rt,lk]=await Promise.all([sb('/rest/v1/trips?id=eq.'+id),g('people','&order=created_at'),g('docs','&order=created_at'),g('files'),g('rot'),g('act_links')]);
+const n={id,name:tr.name,destination:tr.destination,start:tr.start_date||'',end:tr.end_date||'',people:pe.map(p=>({id:p.id,name:p.name})),
+docs:dc.map(d=>({id:d.id,owner:d.owner,title:d.title,category:d.category,notes:d.notes,created:d.created_at,amount:d.amount||0,cur:d.cur,paid:d.paid||'',split:d.split||[],files:fl.filter(f=>f.doc_id==d.id).map(f=>({id:f.id,name:f.name,type:f.mime}))})),
+rot:rt.map(a=>({id:a.id,day:a.day,title:a.title,start:(a.start_time||'').slice(0,5),end:(a.end_time||'').slice(0,5),notes:a.notes,color:a.color,docs:lk.filter(l=>l.act_id==a.id).map(l=>l.doc_id)})),cloud:{code,me}};
+for(const f of fl){try{await fput(f.id,new Blob([await sb(`/storage/v1/object/authenticated/ficheiros/${id}/${f.id}`,{blob:1})],{type:f.mime}))}catch{}}
+await save(n);T=T.filter(x=>x.id!=id);T.push(n);return n}
+function upc(){const t=S.trip;if(!U)return login(()=>upc());
+dlg(`<b>☁ Enviar para a nuvem</b><p class=mut>Envia "${esc(t.name)}" e os seus ficheiros para a nuvem, para partilhares com outras pessoas através de um código de convite.</p><label>Qual destas pessoas és tu?</label><select name=me>${t.people.map((p,i)=>`<option value=${i}>${esc(p.name)}`).join('')}</select>`,async f=>{
+$('#d form').insertAdjacentHTML('beforeend','<p class=mut>A enviar… não feches a app.</p>');
+try{const n=await upload(t,f.get('me'));S.trip=n;go();alert('Viagem enviada! Código de convite: '+n.cloud.code)}catch(x){alert('Não foi possível enviar: '+x.message);return false}})}
+function joinv(){if(!U)return login(()=>joinv());
+dlg(`<b>🔗 Entrar com convite</b><label>Código de convite</label><input name=c required autocapitalize=characters autocomplete=off>`,async f=>{const code=f.get('c').trim().toUpperCase();let j;
+try{j=await sb('/rest/v1/rpc/join_trip',{m:'POST',json:{p_code:code}})}catch(x){alert(x.message);return false}
+const fin=async me=>{try{S.trip=await pull(j.trip_id,code,me);S.tab='d';S.sub='geral';S.fsel=null;go()}catch(x){alert('Erro a obter a viagem: '+x.message)}};
+if(j.mine){await fin(j.mine);return}
+dlg(`<b>${esc(j.name)}</b><p class=mut>Escolhe o teu nome para te alistares na viagem.</p>${j.people.map(p=>`<label class=ck><input type=radio name=p value=${p.id}${p.taken?' disabled':''}>${esc(p.name)}${p.taken?' <span class=mut>(já escolhido)</span>':''}</label>`).join('')}<label>O meu nome não está na lista</label><input name=n placeholder="Escreve o teu nome">`,
+async g=>{try{let me=g.get('p');const nm=g.get('n').trim();
+if(nm)me=await sb('/rest/v1/rpc/join_new_person',{m:'POST',json:{p_code:code,p_name:nm}});
+else if(me)await sb('/rest/v1/rpc/claim_person',{m:'POST',json:{p_code:code,p_person:me}});
+else{alert('Escolhe um nome.');return false}
+await fin(me)}catch(x){alert(x.message);return false}});return false})}
+const A={acc:()=>{if(!U)return login();if(confirm('Sessão iniciada: '+U.user.email+'\nTerminar sessão?')){setU(null);go()}},joinv:()=>joinv(),up:()=>upc(),cp:()=>navigator.clipboard?.writeText(S.trip.cloud.code).then(()=>alert('Código copiado: '+S.trip.cloud.code)),vact:({id})=>vact(id),exp:()=>expo(),imp:()=>$('#imp').click(),
 open:({id})=>{S.trip=T.find(t=>t.id==id);S.tab='d';S.sub='geral';S.fsel=null;go()},
 home:()=>{S.trip=null;go()},
 tab:({k})=>{S.tab=k;go()},
