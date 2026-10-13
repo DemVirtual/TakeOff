@@ -59,7 +59,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:5px 4px;t
 @keyframes up{from{transform:translateY(40px);opacity:0}}
 </style></head><body><div id=app></div><dialog id=d></dialog><div id=sp><svg viewBox="0 0 100 100" width=120 height=120><path d="M80 22 20 48l25 9z" fill="#fff"/><path d="M80 22 45 57l2 23z" fill="#d6e8ff"/></svg><h1>TakeOFF</h1><small>Powered by Vieira Lopes</small></div>
 <script>
-const $=s=>document.querySelector(s),uid=()=>Math.random().toString(36).slice(2,10),
+const $=s=>document.querySelector(s),uid=()=>crypto.randomUUID(),
 esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),
 fd=d=>d.split('-').reverse().join('/'),
 money=(c,u)=>(c/100).toFixed(2).replace('.',',')+(u?' '+u:''),
@@ -72,9 +72,9 @@ days=t=>{const o=[];if(!t.start)return o;let d=new Date(t.start+'T12:00');const 
 uniq=a=>[...new Map(a.filter(Boolean).map(x=>[x.toLowerCase(),x])).values()],
 DB=new Promise((ok,ko)=>{const q=indexedDB.open('viagens',1);q.onupgradeneeded=()=>{q.result.createObjectStore('t',{keyPath:'id'});q.result.createObjectStore('f')};q.onsuccess=()=>ok(q.result);q.onerror=ko}),
 io=async(s,m,f)=>{const d=await DB;return new Promise((ok,ko)=>{const r=f(d.transaction(s,m).objectStore(s));r.onsuccess=()=>ok(r.result);r.onerror=ko})},
-save=t=>(t.updated=new Date().toISOString(),io('t','readwrite',s=>s.put(t))),fput=(i,b)=>io('f','readwrite',s=>s.put(b,i)),fget=i=>io('f','readonly',s=>s.get(i)),fdel=i=>io('f','readwrite',s=>s.delete(i));
+save=t=>(t.updated=new Date().toISOString(),io('t','readwrite',s=>s.put(t)).then(r=>{if(t.cloud)sched(t);return r})),fput=(i,b)=>io('f','readwrite',s=>s.put(b,i)),fget=i=>io('f','readonly',s=>s.get(i)),fdel=i=>io('f','readwrite',s=>s.delete(i));
 let T=[],S={tab:'d',sub:'geral',cs:'f'};
-const go=()=>S.trip?tripV():homeV();
+const go=()=>{S.trip?tripV():homeV();if(S.trip?.cloud)rtc()};
 function dlg(h,ok,extra=''){const d=$('#d');d.innerHTML=`<form>${h}<div class=row>${extra}<button type=button class=btn id=x>Cancelar</button><button class="btn p">Guardar</button></div></form>`;
 $('#x').onclick=()=>d.close();d.querySelector('form').onsubmit=async e=>{e.preventDefault();if(await ok(new FormData(e.target))!==false)d.close()};if(!d.open)d.showModal()}
 const own=(t,o)=>o=='geral'?'Geral':t.people.find(p=>p.id==o)?.name||'';
@@ -85,7 +85,7 @@ tt.forEach((a,i)=>{for(const b of tt.slice(0,i))if(tm(a.start)<tm(b.end)&&tm(b.s
 function homeV(){$('#app').innerHTML=`<div class=hero><small>✈ TakeOFF</small><h1>As minhas viagens</h1></div><div class=pad>${T.map(t=>`<div class=card data-a=open data-id=${t.id}><b>${esc(t.name)}</b> <span class=mut>${esc(t.destination)}</span><div class="${t.start?'mut':'red'}">${t.start?'📅 '+rng(t):'⚠ sem datas'}</div></div>`).join('')||'<p class=mut>Ainda não tens viagens.</p>'}<button class="btn p" data-a=newtrip>➕ Nova viagem</button> <button class=btn data-a=imp>📥 Importar viagem</button><input type=file id=imp hidden> <button class=btn data-a=acc>☁ ${U?esc(U.user.email):'Entrar'}</button> <button class=btn data-a=joinv>🔗 Convite</button></div>`}
 
 function tripV(){const t=S.trip,tb=[['d','📄','Documentos'],['r','🗺','Roteiro'],['c','💰','Contas']];
-$('#app').innerHTML=`<div class=bar><button class=ic data-a=home>←</button><b>${esc(t.name)}${t.destination?' — '+esc(t.destination):''}</b><button class=ic data-a=exp>📤</button><button class=ic data-a=edtrip>✏</button></div><div class=pad><span class="${t.start?'grn':'red'}">${t.start?'📅 '+rng(t)+' ('+days(t).length+' dias)':'⚠ Datas da viagem não definidas'}</span> <button class=lk data-a=dates>${t.start?'Editar':'Definir datas'}</button><div>${t.cloud?`☁ <b>Convite: ${t.cloud.code}</b> <button class=lk data-a=cp>Copiar</button>`:'<button class=lk data-a=up>☁ Enviar para a nuvem</button>'}</div></div><div class=pad id=body></div><div class=nav>${tb.map(([k,i,n])=>`<button class="ni${S.tab==k?' on':''}" data-a=tab data-k=${k}><span>${i}</span>${n}</button>`).join('')}</div>`;
+$('#app').innerHTML=`<div class=bar><button class=ic data-a=home>←</button><b>${esc(t.name)}${t.destination?' — '+esc(t.destination):''}</b><button class=ic data-a=exp>📤</button><button class=ic data-a=edtrip>✏</button></div><div class=pad><span class="${t.start?'grn':'red'}">${t.start?'📅 '+rng(t)+' ('+days(t).length+' dias)':'⚠ Datas da viagem não definidas'}</span> <button class=lk data-a=dates>${t.start?'Editar':'Definir datas'}</button><div>${t.cloud?`☁ <b>Convite: ${t.cloud.code}</b> <button class=lk data-a=cp>Copiar</button> <span id=st class=mut>${S.st||''}</span>`:'<button class=lk data-a=up>☁ Enviar para a nuvem</button>'}</div></div><div class=pad id=body></div><div class=nav>${tb.map(([k,i,n])=>`<button class="ni${S.tab==k?' on':''}" data-a=tab data-k=${k}><span>${i}</span>${n}</button>`).join('')}</div>`;
 ({d:docsV,r:rotV,c:contasV})[S.tab]()}
 
 const chips=(l,cur,a)=>`<div class=tabs style="padding:0 0 8px">${l.map(([k,n])=>`<button class="tab${cur==k?' on':''}" data-a=${a} data-k=${k}>${esc(n)}</button>`).join('')}</div>`;
@@ -157,7 +157,7 @@ const n=v.getUint16(e+10,true);let p=v.getUint32(e+16,true);
 for(let i=0;i<n;i++){const m=v.getUint16(p+10,true),cs=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),xl=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),lo=v.getUint32(p+42,true),name=dec.decode(u.subarray(p+46,p+46+nl)),ls=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true);let d=u.subarray(ls,ls+cs);
 if(m==8)d=new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());else if(m)throw Error('zip');
 out[name]=d;p+=46+nl+xl+cl}return out}
-async function expo(){const t=S.trip,ents=[['trip.json',new TextEncoder().encode(JSON.stringify({format:'viagens',version:1,trip:t}))]];
+async function expo(){const t=S.trip,ents=[['trip.json',new TextEncoder().encode(JSON.stringify({format:'viagens',version:1,trip:{...t,_b:undefined,cloud:undefined}}))]];
 for(const d of t.docs)for(const f of d.files){const b=await fget(f.id);if(b)ents.push(['files/'+f.id,new Uint8Array(await b.arrayBuffer())])}
 const blob=zip(ents),name=t.name.replace(/[\\/:*?"<>|]/g,'_')+'.viagem',file=new File([blob],name,{type:'application/zip'}),e=$('#d');
 e.innerHTML=`<b>📤 ${esc(name)}</b><p class=mut>${(blob.size/1048576).toFixed(1)} MB · ${ents.length-1} ficheiro(s)<br>Envia para o PC (e-mail, AirDrop, WhatsApp…) e usa Importar viagem na app do PC.</p><div class=row><button class=btn data-a=close>Fechar</button><a class=btn href="${URL.createObjectURL(blob)}" download="${esc(name)}">⬇ Guardar</a><button class="btn p" id=sh>Partilhar…</button></div>`;
@@ -210,15 +210,54 @@ const n={...t,id:tr.id,people:t.people.map(p=>({id:pm.get(p.id),name:p.name})),
 docs:t.docs.map(d=>({...d,id:dm.get(d.id),owner:own(d.owner),paid:mp(d.paid)||'',split:(d.split||[]).map(mp).filter(Boolean),files:d.files.filter(f=>fm.has(f.id)).map(f=>({...f,id:fm.get(f.id)}))})),
 rot:t.rot.map(a=>({...a,id:am.get(a.id),docs:(a.docs||[]).filter(i=>dm.has(i)).map(i=>dm.get(i)),contas:[]})),cloud:{code:tr.invite_code,me:pr[+me].id}};
 for(const[o,nid]of fm){const b=await fget(o);if(b)await fput(nid,b);await fdel(o)}
-await io('t','readwrite',s=>s.delete(t.id));await save(n);T=T.filter(x=>x.id!=t.id);T.push(n);return n}
+await io('t','readwrite',s=>s.delete(t.id));n._b=snap(rows(n));await io('t','readwrite',s=>s.put(n));T=T.filter(x=>x.id!=t.id);T.push(n);return n}
 catch(x){await sb('/rest/v1/trips?id=eq.'+tr.id,{m:'DELETE'}).catch(()=>0);throw x}}
-async function pull(id,code,me){const g=(tb,q='')=>sb(`/rest/v1/${tb}?trip_id=eq.${id}${q}`),
-[[tr],pe,dc,fl,rt,lk]=await Promise.all([sb('/rest/v1/trips?id=eq.'+id),g('people','&order=created_at'),g('docs','&order=created_at'),g('files'),g('rot'),g('act_links')]);
-const n={id,name:tr.name,destination:tr.destination,start:tr.start_date||'',end:tr.end_date||'',people:pe.map(p=>({id:p.id,name:p.name})),
+const snap=r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,Object.fromEntries(Object.entries(v).map(([i,x])=>[i,JSON.stringify(x)]))]));
+function rows(t){const T_=t.id,r={trips:{[T_]:{name:t.name,destination:t.destination||'',start_date:t.start||null,end_date:t.end||null}},people:{},docs:{},files:{},rot:{},act_links:{}};
+t.people.forEach(p=>r.people[p.id]={id:p.id,trip_id:T_,name:p.name});
+t.docs.forEach(d=>{r.docs[d.id]={id:d.id,trip_id:T_,owner:d.owner,title:d.title,category:d.category||'',notes:d.notes||'',amount:d.owner=='contas'?d.amount||0:null,cur:d.cur||'',paid:d.paid||null,split:d.split||[],created_at:d.created||undefined};d.files.forEach(f=>r.files[f.id]={id:f.id,trip_id:T_,doc_id:d.id,name:f.name,mime:f.type||'application/octet-stream',size:0})});
+t.rot.forEach(a=>{r.rot[a.id]={id:a.id,trip_id:T_,day:a.day,title:a.title,start_time:a.start||null,end_time:a.end||null,notes:a.notes||'',color:a.color||''};(a.docs||[]).forEach(i=>{if(r.docs[i])r.act_links[a.id+':'+i]={act_id:a.id,doc_id:i,trip_id:T_}})});return r}
+async function push(t){const r=rows(t),b=t._b||{},del={},ch=k=>{const a=[],u=[],d=[],o=b[k]||{};for(const[i,x]of Object.entries(r[k])){if(!(i in o))a.push(x);else if(o[i]!=JSON.stringify(x))u.push([i,x])}for(const i in o)if(!(i in r[k]))d.push(i);return{a,u,d}};
+if((b.trips||{})[t.id]!=JSON.stringify(r.trips[t.id]))await sb('/rest/v1/trips?id=eq.'+t.id,{m:'PATCH',json:r.trips[t.id]});
+for(const k of['people','docs','files','rot','act_links']){
+if(k=='files')for(const x of ch('files').a){const bl=await fget(x.id);if(bl)await sb(`/storage/v1/object/ficheiros/${t.id}/${x.id}`,{m:'POST',body:bl,h:{'Content-Type':bl.type||'application/octet-stream','x-upsert':'true'}})}
+const c=ch(k);
+if(c.a.length)await sb('/rest/v1/'+k,{m:'POST',json:c.a,h:{Prefer:(k=='people'?'resolution=ignore-duplicates':'resolution=merge-duplicates')+',return=minimal'}});
+if(k!='act_links')for(const[i,x]of c.u)await sb(`/rest/v1/${k}?id=eq.${i}`,{m:'PATCH',json:k=='people'?{name:x.name}:x});
+del[k]=c.d}
+for(const k of['act_links','files','rot','docs','people'])for(const i of del[k]){
+if(k=='files')await sb(`/storage/v1/object/ficheiros/${t.id}/${i}`,{m:'DELETE'}).catch(()=>0);
+const[a,d]=i.split(':');await sb(`/rest/v1/${k}?${k=='act_links'?`act_id=eq.${a}&doc_id=eq.${d}`:'id=eq.'+i}`,{m:'DELETE'})}
+t._b=snap(r)}
+async function cloudTrip(id,code,me){const g=(tb,q='')=>sb(`/rest/v1/${tb}?trip_id=eq.${id}${q}`),
+[[tr],pe,dc,fl,ro,lk]=await Promise.all([sb('/rest/v1/trips?id=eq.'+id),g('people','&order=created_at'),g('docs','&order=created_at'),g('files'),g('rot'),g('act_links')]);
+return{fl,n:{id,name:tr.name,destination:tr.destination,start:tr.start_date||'',end:tr.end_date||'',updated:tr.updated_at,people:pe.map(p=>({id:p.id,name:p.name})),
 docs:dc.map(d=>({id:d.id,owner:d.owner,title:d.title,category:d.category,notes:d.notes,created:d.created_at,amount:d.amount||0,cur:d.cur,paid:d.paid||'',split:d.split||[],files:fl.filter(f=>f.doc_id==d.id).map(f=>({id:f.id,name:f.name,type:f.mime}))})),
-rot:rt.map(a=>({id:a.id,day:a.day,title:a.title,start:(a.start_time||'').slice(0,5),end:(a.end_time||'').slice(0,5),notes:a.notes,color:a.color,docs:lk.filter(l=>l.act_id==a.id).map(l=>l.doc_id)})),cloud:{code,me}};
-for(const f of fl){try{await fput(f.id,new Blob([await sb(`/storage/v1/object/authenticated/ficheiros/${id}/${f.id}`,{blob:1})],{type:f.mime}))}catch{}}
-await save(n);T=T.filter(x=>x.id!=id);T.push(n);return n}
+rot:ro.map(a=>({id:a.id,day:a.day,title:a.title,start:(a.start_time||'').slice(0,5),end:(a.end_time||'').slice(0,5),notes:a.notes,color:a.color,docs:lk.filter(l=>l.act_id==a.id).map(l=>l.doc_id)})),cloud:{code,me}}}}
+const dl_=async(id,fl)=>{for(const f of fl)if(!await fget(f.id))try{await fput(f.id,new Blob([await sb(`/storage/v1/object/authenticated/ficheiros/${id}/${f.id}`,{blob:1})],{type:f.mime}))}catch{}};
+async function pull(id,code,me){const c=await cloudTrip(id,code,me);await dl_(id,c.fl);c.n._b=snap(rows(c.n));await io('t','readwrite',s=>s.put(c.n));T=T.filter(x=>x.id!=id);T.push(c.n);return c.n}
+const busy=new Set();let sst,ws;
+function sched(t,ms=900){clearTimeout(sst);sst=setTimeout(()=>sync(t),ms)}
+function setSt(x){S.st=x;const e=$('#st');if(e)e.textContent=x}
+async function sync(t){if(!U||!t.cloud||busy.has(t.id))return;busy.add(t.id);setSt('⏳ A sincronizar…');
+try{if(!t._b){const c=await cloudTrip(t.id,t.cloud.code,t.cloud.me),lr=rows(t),cr=rows(c.n),b={};for(const k in lr){b[k]={};for(const i in lr[k])if(cr[k][i]!==undefined)b[k][i]=JSON.stringify(cr[k][i])}t._b=b}
+const v=t.updated;await push(t);const c=await cloudTrip(t.id,t.cloud.code,t.cloud.me);
+if(t.updated!=v||$('#d').open){S.dirty=1;setSt('⏳ A sincronizar…');return}
+await dl_(t.id,c.fl);const same=JSON.stringify(rows(c.n))==JSON.stringify(rows(t));c.n._b=snap(rows(c.n));
+await io('t','readwrite',s=>s.put(c.n));T=T.map(x=>x.id==t.id?c.n:x);if(S.trip?.id==t.id){S.trip=c.n;if(!same)go()}
+setSt('✓ Sincronizado')}
+catch(e){setSt(navigator.onLine?'⚠ '+e.message:'⏳ Sem ligação — guardado no dispositivo')}
+finally{busy.delete(t.id);if(S.dirty&&!$('#d').open){S.dirty=0;sched(S.trip?.cloud?S.trip:t,100)}}}
+function rtc(){if(!U||!S.trip?.cloud)return;const id=S.trip.id;if(ws&&ws.tid==id&&ws.readyState<2)return;if(ws){ws.tid=0;ws.close()}
+const w=ws=new WebSocket(SU.replace('https','wss')+'/realtime/v1/websocket?apikey='+SK+'&vsn=1.0.0');w.tid=id;let n=0;
+w.onopen=()=>{w.send(JSON.stringify({topic:'realtime:t'+id,event:'phx_join',ref:String(++n),join_ref:'1',payload:{config:{postgres_changes:['trips','people','docs','files','rot','act_links'].map(tb=>({event:'*',schema:'public',table:tb,filter:(tb=='trips'?'id':'trip_id')+'=eq.'+id}))},access_token:U.access_token}}));
+w.hb=setInterval(()=>w.readyState==1&&w.send(JSON.stringify({topic:'phoenix',event:'heartbeat',payload:{},ref:String(++n)})),25000)};
+w.onmessage=m=>{try{if(JSON.parse(m.data).event=='postgres_changes')sched(S.trip,400)}catch{}};
+w.onclose=()=>{clearInterval(w.hb);if(w.tid)setTimeout(rtc,4000)}}
+setInterval(()=>S.trip?.cloud&&!document.hidden&&sync(S.trip),30000);
+addEventListener('online',()=>S.trip?.cloud&&sync(S.trip));
+document.addEventListener('visibilitychange',()=>!document.hidden&&S.trip?.cloud&&sched(S.trip,200));
+$('#d').addEventListener('close',()=>{if(S.dirty){S.dirty=0;if(S.trip?.cloud)sched(S.trip,100)}});
 function upc(){const t=S.trip;if(!U)return login(()=>upc());
 dlg(`<b>☁ Enviar para a nuvem</b><p class=mut>Envia "${esc(t.name)}" e os seus ficheiros para a nuvem, para partilhares com outras pessoas através de um código de convite.</p><label>Qual destas pessoas és tu?</label><select name=me>${t.people.map((p,i)=>`<option value=${i}>${esc(p.name)}`).join('')}</select>`,async f=>{
 $('#d form').insertAdjacentHTML('beforeend','<p class=mut>A enviar… não feches a app.</p>');
@@ -235,7 +274,7 @@ else if(me)await sb('/rest/v1/rpc/claim_person',{m:'POST',json:{p_code:code,p_pe
 else{alert('Escolhe um nome.');return false}
 await fin(me)}catch(x){alert(x.message);return false}});return false})}
 const A={acc:()=>{if(!U)return login();if(confirm('Sessão iniciada: '+U.user.email+'\nTerminar sessão?')){setU(null);go()}},joinv:()=>joinv(),up:()=>upc(),cp:()=>navigator.clipboard?.writeText(S.trip.cloud.code).then(()=>alert('Código copiado: '+S.trip.cloud.code)),vact:({id})=>vact(id),exp:()=>expo(),imp:()=>$('#imp').click(),
-open:({id})=>{S.trip=T.find(t=>t.id==id);S.tab='d';S.sub='geral';S.fsel=null;go()},
+open:({id})=>{S.trip=T.find(t=>t.id==id);S.tab='d';S.sub='geral';S.fsel=null;go();if(S.trip.cloud)sched(S.trip,50)},
 home:()=>{S.trip=null;go()},
 tab:({k})=>{S.tab=k;go()},
 sub:({k})=>{if(k=='+'){const n=(prompt('Nome da pessoa')||'').trim();if(n){S.trip.people.push({id:uid(),name:n});S.fsel=null;save(S.trip)}}else S.sub=k;go()},
